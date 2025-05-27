@@ -55,12 +55,13 @@ compute_capabilities = set([
     (3, 7), # K80, e.g.
     (5, 2), # Titan X
     (6, 1), # GeForce 1000-series
+    (7, 0), # Tesla V100
+    (7, 5), # Turing
+    (8, 0), # Ampere A100
+    (8, 6), # Ampere consumer
+    (8, 9), # Ada Lovelace
+    (9, 0), # Hopper
 ])
-
-compute_capabilities.add((7, 0))
-_, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
-if int(bare_metal_major) >= 11:
-    compute_capabilities.add((8, 0))
 
 compute_capability, _ = get_nvidia_cc()
 if compute_capability is not None:
