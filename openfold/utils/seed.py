@@ -2,7 +2,14 @@ import os
 import logging
 import random
 import numpy as np
-from pytorch_lightning.utilities.seed import seed_everything
+
+# Handle different pytorch_lightning versions
+try:
+    # New location (pytorch_lightning >= 2.0)
+    from pytorch_lightning import seed_everything
+except ImportError:
+    # Old location (pytorch_lightning < 2.0)
+    from pytorch_lightning.utilities.seed import seed_everything
 
 from openfold.utils.suppress_output import SuppressLogging
 
