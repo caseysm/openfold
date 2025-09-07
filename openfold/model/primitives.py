@@ -26,7 +26,10 @@ fa_is_installed = importlib.util.find_spec("flash_attn") is not None
 if(fa_is_installed):
     from flash_attn.bert_padding import unpad_input, pad_input
     from flash_attn.flash_attention import FlashAttention
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_kvpacked_func
+    from flash_attn.flash_attn_interface import flash_attn_varlen_kvpacked_func
+
+from flash_attn.bert_padding import unpad_input
+from flash_attn.flash_attn_interface import flash_attn_varlen_kvpacked_func
 
 import torch
 import torch.nn as nn
@@ -658,14 +661,34 @@ def _lma(
 
 @torch.jit.ignore
 def _flash_attn(q, k, v, kv_mask):
-    if(not fa_is_installed):
-        raise ValueError(
-            "_flash_attn requires that FlashAttention be installed"
-        )
-   
     batch_dims = q.shape[:-3]
     no_heads, n, c = q.shape[-3:]
     dtype = q.dtype
+    if q.is_cuda and q.dtype not in (torch.float16, torch.bfloat16):
+        q = q.to(torch.bfloat16); k = k.to(q.dtype); v = v.to(q.dtype)
+    q = q.transpose(-2, -3); k = k.transpose(-2, -3); v = v.transpose(-2, -3)
+    q = q.reshape(-1, *q.shape[-3:]); k = k.reshape(-1, *k.shape[-3:]); v = v.reshape(-1, *v.shape[-3:])
+    batch_size = q.shape[0]
+    q_q = q.reshape(-1, *q.shape[-2:])
+    kv = torch.stack([k, v], dim=-3)
+    kv_shape = kv.shape
+    kv = kv.reshape(*kv.shape[:-3], -1)
+    if kv_mask is None:
+        kv_unpad = kv.reshape(-1, kv.shape[-1])
+        kv_cu_seqlens = torch.arange(0, (batch_size + 1) * n, step=n, dtype=torch.int32, device=kv.device)
+        kv_max_s = n
+    else:
+        if kv_mask.dim() > 2:
+            kv_mask = kv_mask.reshape(batch_size, n)
+        kv_unpad, _, kv_cu_seqlens, kv_max_s = unpad_input(kv, kv_mask.to(kv.dtype))
+    kv_unpad = kv_unpad.reshape(-1, *kv_shape[-3:])
+    q_cu_seqlens = torch.arange(0, (batch_size + 1) * n, step=n, dtype=torch.int32, device=q_q.device)
+    q_max_s = n
+    out = flash_attn_varlen_kvpacked_func(q_q, kv_unpad, q_cu_seqlens, kv_cu_seqlens, q_max_s, kv_max_s, dropout_p=0.0, softmax_scale=1.0, causal=False)
+    out = out.reshape(batch_size, n, no_heads, c).transpose(1, 2).to(dtype)
+    out = out.reshape(*batch_dims, no_heads, n, c)
+    return out
+
 
     q = q.half()
     k = k.half()
@@ -703,7 +726,7 @@ def _flash_attn(q, k, v, kv_mask):
     kv_unpad, _, kv_cu_seqlens, kv_max_s = unpad_input(kv, kv_mask)
     kv_unpad = kv_unpad.reshape(-1, *kv_shape[-3:])
    
-    out = flash_attn_unpadded_kvpacked_func(
+    out = flash_attn_varlen_kvpacked_func(
         q,
         kv_unpad,
         q_cu_seqlens,
