@@ -25,7 +25,6 @@ if(deepspeed_is_installed):
 fa_is_installed = importlib.util.find_spec("flash_attn") is not None
 if(fa_is_installed):
     from flash_attn.bert_padding import unpad_input, pad_input
-    from flash_attn.flash_attention import FlashAttention
     from flash_attn.flash_attn_interface import flash_attn_varlen_kvpacked_func
 
 from flash_attn.bert_padding import unpad_input
@@ -196,10 +195,12 @@ class LayerNorm(nn.Module):
 
     def forward(self, x): 
         d = x.dtype
-        deepspeed_is_initialized = (
-            deepspeed_is_installed and 
-            deepspeed.utils.is_initialized()
-        )
+        # Guard against older/newer deepspeed utils without is_initialized
+        if deepspeed_is_installed:
+            _is_init = getattr(__import__('deepspeed').utils, 'is_initialized', lambda: False)
+            deepspeed_is_initialized = bool(_is_init())
+        else:
+            deepspeed_is_initialized = False
         if(d is torch.bfloat16 and not deepspeed_is_initialized):
             with torch.cuda.amp.autocast(enabled=False):
                 out = nn.functional.layer_norm(
@@ -228,10 +229,11 @@ def softmax_no_cast(t: torch.Tensor, dim: int = -1) -> torch.Tensor:
         type bfloat16
     """
     d = t.dtype
-    deepspeed_is_initialized = (
-        deepspeed_is_installed and 
-        deepspeed.utils.is_initialized()
-    )
+    if deepspeed_is_installed:
+        _is_init = getattr(__import__('deepspeed').utils, 'is_initialized', lambda: False)
+        deepspeed_is_initialized = bool(_is_init())
+    else:
+        deepspeed_is_initialized = False
     if(d is torch.bfloat16 and not deepspeed_is_initialized):
         with torch.cuda.amp.autocast(enabled=False):
             s = torch.nn.functional.softmax(t, dim=dim)
