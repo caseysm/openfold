@@ -391,7 +391,7 @@ class Rotation:
         else:
             raise ValueError("Both rotations are None")
 
-    def __mul__(self,
+    def multiply(self,
         right: torch.Tensor,
     ) -> Rotation:
         """
@@ -415,6 +415,11 @@ class Rotation:
             return Rotation(rot_mats=None, quats=quats, normalize_quats=False)
         else:
             raise ValueError("Both rotations are None")
+
+    def __mul__(self,
+        right: torch.Tensor,
+    ) -> Rotation:
+        return self.multiply(right)
 
     def __rmul__(self,
         left: torch.Tensor,
@@ -920,7 +925,7 @@ class Rigid:
             self._trans[index + (slice(None),)],
         )
 
-    def __mul__(self,
+    def multiply(self,
         right: torch.Tensor,
     ) -> Rigid:
         """
@@ -936,10 +941,15 @@ class Rigid:
         if not(isinstance(right, torch.Tensor)):
             raise TypeError("The other multiplicand must be a Tensor")
 
-        new_rots = self._rots * right
+        new_rots = self._rots.multiply(right)
         new_trans = self._trans * right[..., None]
 
         return Rigid(new_rots, new_trans)
+
+    def __mul__(self,
+        right: torch.Tensor,
+    ) -> Rigid:
+        return self.multiply(right)
 
     def __rmul__(self,
         left: torch.Tensor,

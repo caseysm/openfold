@@ -271,7 +271,11 @@ def frames_and_literature_positions_to_atom14_pos(
     )
 
     # [*, N, 14, 8]
-    t_atoms_to_global = r[..., None, :] * group_mask
+    # Calling an overloaded Python binary operator with a tensor-backed Rigid
+    # prevents TorchDynamo from converting the arguments to graph proxies.  An
+    # explicit method call keeps the same eager behavior while allowing PT2 to
+    # inline the tensor operations that implement the multiplication.
+    t_atoms_to_global = r[..., None, :].multiply(group_mask)
 
     # [*, N, 14]
     t_atoms_to_global = t_atoms_to_global.map_tensor_fn(

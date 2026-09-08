@@ -294,7 +294,7 @@ def frames_and_literature_positions_to_atom14_pos(
     )    # shape (*, N, 14, 8)
 
     # geometry.Rigid3Array with shape (N, 14)
-    map_atoms_to_global = all_frames_to_global[..., None, :] * group_mask
+    map_atoms_to_global = all_frames_to_global[..., None, :].multiply(group_mask)
     map_atoms_to_global = map_atoms_to_global.map_tensor_fn(
         partial(torch.sum, dim=-1)
     )
