@@ -82,7 +82,7 @@ def _is_fake_tensor(input: torch.Tensor) -> bool:
     return is_fake(input)
 
 
-def _is_compiling() -> bool:
+def is_pt2_compiling() -> bool:
     compiler = getattr(torch, "compiler", None)
     is_compiling = getattr(compiler, "is_compiling", None)
     return bool(is_compiling is not None and is_compiling())
@@ -90,7 +90,7 @@ def _is_compiling() -> bool:
 
 def attention_softmax_inplace(input: torch.Tensor) -> torch.Tensor:
     """Use the original in-place kernel eagerly and a functional op in PT2."""
-    if _is_compiling() or _is_fake_tensor(input) or input.device.type == "meta":
+    if is_pt2_compiling() or _is_fake_tensor(input) or input.device.type == "meta":
         return attention_softmax(input)
 
     load_attn_core_extension().forward_(

@@ -15,6 +15,7 @@ import torch
 
 from openfold.utils.kernel.pt2_attention import (
     attention_softmax_inplace,
+    is_pt2_compiling,
     load_attn_core_extension,
 )
 
@@ -95,4 +96,25 @@ class AttentionCoreFunction(torch.autograd.Function):
 
         return grad_q, grad_k, grad_v, grad_bias_1, grad_bias_2
 
-attention_core = AttentionCoreFunction.apply
+def _attention_core_pt2(q, k, v, bias_1=None, bias_2=None):
+    """Functional forward used while PT2 captures an inference graph."""
+    if(bias_1 is None and bias_2 is not None):
+        raise ValueError("bias_1 must be specified before bias_2")
+    if(q.dtype not in SUPPORTED_DTYPES):
+        raise ValueError("Unsupported datatype")
+
+    attention_logits = torch.matmul(
+        q.contiguous(), k.contiguous().transpose(-1, -2),
+    )
+    if(bias_1 is not None):
+        attention_logits = attention_logits + bias_1
+    if(bias_2 is not None):
+        attention_logits = attention_logits + bias_2
+    attention_probs = attention_softmax_inplace(attention_logits)
+    return torch.matmul(attention_probs, v)
+
+
+def attention_core(q, k, v, bias_1=None, bias_2=None):
+    if is_pt2_compiling():
+        return _attention_core_pt2(q, k, v, bias_1, bias_2)
+    return AttentionCoreFunction.apply(q, k, v, bias_1, bias_2)

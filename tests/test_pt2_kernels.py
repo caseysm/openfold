@@ -112,6 +112,10 @@ class TestPT2AttentionSoftmax(unittest.TestCase):
             (q, k, v, bias),
             strict=True,
         )
+        self.assertIn(
+            torch.ops.openfold.attention_softmax.default,
+            _targets(exported),
+        )
         lowered = exported.run_decompositions(
             attention_softmax_decomposition_table()
         )
