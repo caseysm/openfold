@@ -51,6 +51,14 @@ class AuxiliaryHeads(nn.Module):
             )
 
         self.config = config
+        # Materialize the scalar confidence settings while constructing the
+        # module. Expanding an ml_collections.ConfigDict inside forward asks
+        # Dynamo to trace ConfigDict's key sorting implementation.
+        self.tm_enabled = bool(config.tm.enabled)
+        self.tm_no_bins = int(config.tm.no_bins)
+        self.tm_max_bin = float(config.tm.get("max_bin", 31))
+        self.tm_ptm_weight = float(config.tm.get("ptm_weight", 0.2))
+        self.tm_iptm_weight = float(config.tm.get("iptm_weight", 0.8))
 
     def forward(self, outputs):
         aux_out = {}
@@ -73,24 +81,33 @@ class AuxiliaryHeads(nn.Module):
             "experimentally_resolved_logits"
         ] = experimentally_resolved_logits
 
-        if self.config.tm.enabled:
+        if self.tm_enabled:
             tm_logits = self.tm(outputs["pair"])
             aux_out["tm_logits"] = tm_logits
             aux_out["ptm_score"] = compute_tm(
-                tm_logits, **self.config.tm
+                tm_logits,
+                max_bin=self.tm_max_bin,
+                no_bins=self.tm_no_bins,
             )
             asym_id = outputs.get("asym_id")
             if asym_id is not None:
                 aux_out["iptm_score"] = compute_tm(
-                    tm_logits, asym_id=asym_id, interface=True, **self.config.tm
+                    tm_logits,
+                    asym_id=asym_id,
+                    interface=True,
+                    max_bin=self.tm_max_bin,
+                    no_bins=self.tm_no_bins,
                 )
-                aux_out["weighted_ptm_score"] = (self.config.tm["iptm_weight"] * aux_out["iptm_score"]
-                                                 + self.config.tm["ptm_weight"] * aux_out["ptm_score"])
+                aux_out["weighted_ptm_score"] = (
+                    self.tm_iptm_weight * aux_out["iptm_score"]
+                    + self.tm_ptm_weight * aux_out["ptm_score"]
+                )
 
             aux_out.update(
                 compute_predicted_aligned_error(
                     tm_logits,
-                    **self.config.tm,
+                    max_bin=self.tm_max_bin,
+                    no_bins=self.tm_no_bins,
                 )
             )
 
