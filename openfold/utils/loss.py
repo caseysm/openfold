@@ -714,8 +714,11 @@ def compute_tm(
 
     weighted = per_alignment * residue_weights
 
-    argmax = (weighted == torch.max(weighted)).nonzero()[0]
-    return per_alignment[tuple(argmax)]
+    # Select the first maximum in flattened order without converting a
+    # data-dependent tensor coordinate into a Python tuple. This is equivalent
+    # to nonzero()[0] for ties and remains representable in a PT2 graph.
+    flat_index = torch.argmax(weighted.reshape(-1), dim=0, keepdim=True)
+    return torch.gather(per_alignment.reshape(-1), 0, flat_index).squeeze(0)
 
 
 def tm_loss(
