@@ -48,12 +48,15 @@ class Vec3Array:
             self.z - other.z,
         )
 
-    def __mul__(self, other: Float) -> Vec3Array:
+    def multiply(self, other: Float) -> Vec3Array:
         return Vec3Array(
             self.x * other,
             self.y * other,
             self.z * other,
         )
+
+    def __mul__(self, other: Float) -> Vec3Array:
+        return self.multiply(other)
 
     def __rmul__(self, other: Float) -> Vec3Array:
         return self * other

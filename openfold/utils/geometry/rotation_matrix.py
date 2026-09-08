@@ -50,7 +50,7 @@ class Rot3Array:
             }
         )
     
-    def __mul__(self, other: torch.Tensor):
+    def multiply(self, other: torch.Tensor):
         field_names = utils.get_field_names(Rot3Array)
         return Rot3Array(
             **{
@@ -58,6 +58,9 @@ class Rot3Array:
                 for name in field_names
             }
         )
+
+    def __mul__(self, other: torch.Tensor):
+        return self.multiply(other)
     
     def __matmul__(self, other: Rot3Array) -> Rot3Array:
         """Composes two Rot3Arrays."""

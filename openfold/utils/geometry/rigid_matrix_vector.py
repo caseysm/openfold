@@ -44,11 +44,14 @@ class Rigid3Array:
             self.translation[index],
         )
 
-    def __mul__(self, other: torch.Tensor) -> Rigid3Array:
+    def multiply(self, other: torch.Tensor) -> Rigid3Array:
         return Rigid3Array(
-            self.rotation * other,
-            self.translation * other,
+            self.rotation.multiply(other),
+            self.translation.multiply(other),
         )
+
+    def __mul__(self, other: torch.Tensor) -> Rigid3Array:
+        return self.multiply(other)
 
     def map_tensor_fn(self, fn) -> Rigid3Array:
         return Rigid3Array(
